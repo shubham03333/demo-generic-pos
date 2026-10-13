@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Clock, ChefHat, Edit2, Trash2, X, Save, BarChart3, History, Wifi, WifiOff, ArrowLeft, Menu, Users, Package, Search } from 'lucide-react';
+import { Clock, ChefHat, Edit2, Trash2, X, Save, BarChart3, History, Wifi, WifiOff, ArrowLeft, Menu, Users, Package, Search, Bluetooth } from 'lucide-react';
 import { Order, MenuItem, OrderItem, CreateOrderRequest, UpdateOrderRequest, Table, LocalOrder, SyncQueueItem } from '@/types';
 import { useOfflineStatus } from '@/hooks/useOfflineStatus';
 import { indexedDBManager } from '@/lib/indexeddb';
@@ -10,6 +10,8 @@ import GoogleReviewQR from './GoogleReviewQR';
 import PendingOrdersSidebar from './PendingOrdersSidebar';
 import WaiterPhotoDishCard, { WaiterTextDishCard } from './WaiterPhotoDishCard';
 import { readStoredPhotoUrls, storePhotoUrls } from '@/lib/dish-photo-cache';
+import PrinterSetupModal from '@/components/PrinterSetupModal';
+import { isNativePos, printOrderReceipt } from '@/lib/native-printer';
 
 function isCatalogTableOrder(order: Order) {
   const source = String(order.external_source || '').toLowerCase();
@@ -115,6 +117,9 @@ const CafeOrderSystem = () => {
   const [payPreview, setPayPreview] = useState<{ gross: number; discount: number; net: number; name?: string } | null>(null);
   const [payError, setPayError] = useState<string | null>(null);
   const [payBusy, setPayBusy] = useState(false);
+  const [printerSetupOpen, setPrinterSetupOpen] = useState(false);
+  const [printBusy, setPrintBusy] = useState(false);
+  const [printNotice, setPrintNotice] = useState<string | null>(null);
 
   // Analytics chart state
   const [showAnalytics, setShowAnalytics] = useState(false);
@@ -1018,6 +1023,50 @@ const CafeOrderSystem = () => {
     setPayBusy(false);
   };
 
+  const printWithBrowserFallback = (order: Order) => {
+    const domain = process.env.NEXT_PUBLIC_PRODUCTION_DOMAIN;
+    if (!domain) {
+      alert('Printer domain not configured');
+      return;
+    }
+    const printUrl = `my.bluetoothprint.scheme://https://${domain}/api/print/order/${order.id}`;
+    const link = document.createElement('a');
+    link.href = printUrl;
+    link.style.display = 'none';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    openPaymentModeModal(order);
+  };
+
+  const handlePosPrint = async (order: Order) => {
+    setPrintBusy(true);
+    setPrintNotice(null);
+    try {
+      if (await isNativePos()) {
+        const result = await printOrderReceipt(order);
+        if (result.ok) {
+          setPrintNotice('Printed');
+          openPaymentModeModal(order);
+          return;
+        }
+        if ('needSetup' in result && result.needSetup) {
+          setPrintNotice(result.message);
+          setPrinterSetupOpen(true);
+          return;
+        }
+        setPrintNotice(result.message);
+        return;
+      }
+      printWithBrowserFallback(order);
+    } catch (err) {
+      console.error(err);
+      setPrintNotice('Print failed');
+    } finally {
+      setPrintBusy(false);
+    }
+  };
+
   const printBill = (order: Order) => {
   const printWindow = window.open('', '_blank', 'width=400,height=600');
 
@@ -1434,6 +1483,15 @@ const CafeOrderSystem = () => {
             >
               <div className="text-[10px] sm:text-xs text-white/90">Sales</div>
               <div className="text-sm sm:text-lg font-bold text-white">{formatINR(dailySales)}</div>
+            </button>
+            <button
+              type="button"
+              onClick={() => setPrinterSetupOpen(true)}
+              className="p-1.5 sm:p-2.5 bg-white text-red-600 rounded-lg hover:bg-gray-100 transition-colors shadow-md min-h-[44px] min-w-[44px] flex items-center justify-center flex-shrink-0"
+              title="Receipt printer"
+              aria-label="Choose receipt printer"
+            >
+              <Bluetooth className="w-4 h-4 sm:w-5 sm:h-5" />
             </button>
             <button
               type="button"
@@ -2078,6 +2136,11 @@ const CafeOrderSystem = () => {
               </div>
 
               {/* Action Buttons at Bottom */}
+              {printNotice ? (
+                <p className={`text-center text-xs print:hidden mb-1 ${printNotice === 'Printed' ? 'text-emerald-700' : 'text-red-700'}`}>
+                  {printNotice}
+                </p>
+              ) : null}
               <div className="flex gap-3 justify-center print:hidden mt-2 flex-wrap">
                 {viewingOrder.status === 'pending' ? (
                   <button
@@ -2101,35 +2164,12 @@ const CafeOrderSystem = () => {
                     Stop QR
                   </button>
                 ) : null}
-{/* for prod use below  */}
 <button
-  onClick={() => {
-    const domain = process.env.NEXT_PUBLIC_PRODUCTION_DOMAIN;
-
-    if (!domain) {
-      alert('Printer domain not configured');
-      return;
-    }
-
-      const printUrl =
-      `my.bluetoothprint.scheme://https://${domain}/api/print/order/${viewingOrder.id}`;
-
-    // const printUrl =
-    //   `my.bluetoothprint.scheme://http://${domain}/api/print/order/${viewingOrder.id}`;
-
-    // Use a temporary anchor element to open custom scheme
-    const link = document.createElement('a');
-    link.href = printUrl;
-    link.style.display = 'none';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-
-    openPaymentModeModal(viewingOrder);
-  }}
-  className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg font-medium"
+  onClick={() => void handlePosPrint(viewingOrder)}
+  disabled={printBusy}
+  className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg font-medium disabled:opacity-50"
 >
-  🖨️ Print
+  {printBusy ? 'Printing…' : 'Print'}
 </button>
 
                 <button
@@ -2632,6 +2672,11 @@ const CafeOrderSystem = () => {
           </div>
         </>
       )}
+
+      <PrinterSetupModal
+        open={printerSetupOpen}
+        onClose={() => setPrinterSetupOpen(false)}
+      />
     </div>
   );
 };

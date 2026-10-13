@@ -46,3 +46,15 @@ yarn-error.log*
 next-env.d.ts
 
 .vercel
+
+# Capacitor / Android Studio
+android/.gradle/
+android/build/
+android/app/build/
+android/app/release/
+android/local.properties
+android/captures/
+*.apk
+*.aab
+*.keystore
+!android/app/debug.keystore
