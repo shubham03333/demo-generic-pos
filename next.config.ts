@@ -5,6 +5,11 @@ import withPWA from "next-pwa";
 const nextConfig: NextConfig = {
   /* config options here */
   "eslint": { "ignoreDuringBuilds": true },
+  transpilePackages: [
+    '@capacitor/core',
+    '@capacitor/preferences',
+    '@devlas/capacitor-thermal-printer',
+  ],
 
   // Memory optimizations for development and production
   serverExternalPackages: ['mysql2'],

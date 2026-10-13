@@ -15,9 +15,15 @@
     "purge-junk": "node scripts/purge-junk.js",
     "test-daily-reset": "node scripts/test-daily-reset.js",
     "test": "npx --yes tsx --test src/lib/offer-calc.test.ts src/lib/daily-stockout.test.ts",
-    "test:integration": "node scripts/test-integration-api.js"
+    "test:integration": "node scripts/test-integration-api.js",
+    "cap:sync": "npx cap sync android",
+    "cap:open": "npx cap open android"
   },
   "dependencies": {
+    "@capacitor/app": "^8.1.2",
+    "@capacitor/core": "^8.5.3",
+    "@capacitor/preferences": "^8.0.1",
+    "@devlas/capacitor-thermal-printer": "^0.8.0",
     "@planetscale/database": "^1.19.0",
     "@types/bcryptjs": "^2.4.6",
     "@types/jsonwebtoken": "^9.0.10",
@@ -37,6 +43,8 @@
     "uuid": "^11.1.0"
   },
   "devDependencies": {
+    "@capacitor/android": "^8.5.3",
+    "@capacitor/cli": "^8.5.3",
     "@eslint/eslintrc": "^3",
     "@tailwindcss/postcss": "^4",
     "@types/next-pwa": "^5.6.9",
